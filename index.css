@@ -1,0 +1,79 @@
+:root {
+  --background-color: #1a1a2e;
+  --primary-color: #16213e;
+  --secondary-color: #0f3460;
+  --accent-color: #e94560;
+  --text-color: #dcdcdc;
+  --font-title: 'Cinzel', serif;
+  --font-body: 'Lato', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  font-family: var(--font-body);
+  background-color: var(--background-color);
+  color: var(--text-color);
+}
+
+/* Permettre le scroll sur mobile et petits écrans */
+html, body {
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+#root {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding: 1rem;
+  min-height: 100vh;
+}
+
+/* Responsive typography */
+@media (max-width: 768px) {
+  #root {
+    padding: 0.5rem;
+  }
+  
+  h1 {
+    font-size: 2rem !important;
+  }
+  
+  h2 {
+    font-size: 1.5rem !important;
+  }
+  
+  h3 {
+    font-size: 1.2rem !important;
+  }
+  
+  h4 {
+    font-size: 1rem !important;
+  }
+}
+
+h1, h2, h3 {
+  font-family: var(--font-title);
+  color: var(--accent-color);
+  margin-bottom: 1rem;
+}
+
+/* Animation pour l'affichage de la voyante */
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 0 20px rgba(233, 69, 96, 0.5);
+  }
+  50% {
+    transform: scale(1.02);
+    box-shadow: 0 0 30px rgba(233, 69, 96, 0.8);
+  }
+}
