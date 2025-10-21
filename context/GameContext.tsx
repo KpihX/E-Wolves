@@ -88,14 +88,31 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const handleAction = useCallback(async (action: Function, ...args: any[]) => {
     setIsLoading(true);
     try {
-      await action(clientId.current, ...args);
-      // L'état sera mis à jour par l'event listener 'storage'
+      const result = await action(clientId.current, ...args);
+      
+      // Si l'action retourne un gameCode (ex: createGame), s'abonner aux changements
+      if (typeof result === 'string' && result.length === 5) {
+        sessionStorage.setItem('gameCode', result);
+        await updateStateForClient(result);
+        gameService.subscribeToGame(result, (updatedGame) => {
+          setGameState(prev => {
+            const currentPlayer = updatedGame.players.find(p => p.id === clientId.current)!;
+            return {
+              ...prev,
+              game: updatedGame,
+              screen: currentPlayer.isNarrator ? 'GAME_NARRATOR' : 'GAME_PLAYER'
+            };
+          });
+          setIsLoading(false);
+        });
+      }
+      setIsLoading(false);
     } catch (e: any) {
       console.error(e);
       alert(e.message || "Une erreur est survenue.");
       setIsLoading(false);
     }
-  }, []);
+  }, [updateStateForClient]);
 
   const createGame = (narratorName: string) => handleAction(gameService.createGame, narratorName);
   const joinGame = (playerName: string, code: string) => handleAction(gameService.joinGame, playerName, code.toUpperCase());

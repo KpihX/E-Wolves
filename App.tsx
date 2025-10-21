@@ -37,14 +37,24 @@ export const App: React.FC = () => {
       textAlign: 'center', 
       padding: '1rem', 
       display: 'flex', 
+      flexDirection: 'column',
       justifyContent: 'center', 
       alignItems: 'center', 
       minHeight: '100vh',
       width: '100%'
     }}>
-      <div style={{ width: '100%', maxWidth: '1200px' }}>
+      <div style={{ width: '100%', maxWidth: '1200px', flex: 1, display: 'flex', alignItems: 'center' }}>
         {renderScreen()}
       </div>
+      <footer style={{ 
+        marginTop: '2rem', 
+        padding: '1rem', 
+        fontSize: '0.85rem', 
+        color: '#666',
+        opacity: 0.7
+      }}>
+        By K<span style={{ fontFamily: 'serif', fontStyle: 'italic' }}>π</span>X
+      </footer>
     </main>
   );
 };

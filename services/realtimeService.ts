@@ -449,7 +449,7 @@ const endNight = async (game: GameState, gameCode: string) => {
 
 // --- API du Service (fonctions appelées par le contexte) ---
 
-export const createGame = async (clientId: string, narratorName: string) => {
+export const createGame = async (clientId: string, narratorName: string): Promise<string> => {
     // Valider que le nom n'est pas vide
     const trimmedName = narratorName.trim();
     if (!trimmedName) {
@@ -460,6 +460,7 @@ export const createGame = async (clientId: string, narratorName: string) => {
     const narrator = { id: clientId, name: trimmedName, role: null, isAlive: true, isNarrator: true };
     const newGame = createInitialGameState(gameCode, narrator);
     await updateAndNotify(gameCode, newGame);
+    return gameCode;
 };
 
 export const joinGame = async (clientId: string, playerName: string, gameCode: string) => {
