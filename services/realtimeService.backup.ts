@@ -1,90 +1,30 @@
-import { ref, set, get, onValue, update, remove, off } from 'firebase/database';
-import { database } from '../config/firebase';
 import { GameState, Role, WitchAction } from '../types';
 import { generateNightSequence, AVAILABLE_ROLES, SECOND_NIGHT_PHASES, generateRecommendedConfig } from '../types/gameConfig';
 
 // --- CONFIGURATION ---
-export const STORAGE_KEY = 'werewolf-games'; // Gardé pour compatibilité
+export const STORAGE_KEY = 'werewolf-games';
 
-// --- MOTEUR DE JEU FIREBASE ---
+// --- MOTEUR DE JEU LOCAL ---
 let currentClientId: string | null = null;
 let stateUpdateCallback: ((gameCode: string | null) => void) | null = null;
-let activeListeners: Map<string, () => void> = new Map();
 
-// --- Fonctions de gestion de l'état avec Firebase ---
 
-/**
- * Récupère toutes les parties depuis Firebase
- */
-const getGames = async (): Promise<Record<string, GameState>> => {
+// --- Fonctions de gestion de l'état ---
+const getGames = (): Record<string, GameState> => {
     try {
-        const gamesRef = ref(database, 'games');
-        const snapshot = await get(gamesRef);
-        return snapshot.exists() ? snapshot.val() : {};
-    } catch (error) {
-        console.error('Erreur Firebase - getGames:', error);
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+    } catch {
         return {};
     }
 };
 
-/**
- * Sauvegarde toutes les parties dans Firebase
- */
-const saveGames = async (games: Record<string, GameState>): Promise<void> => {
-    try {
-        const gamesRef = ref(database, 'games');
-        await set(gamesRef, games);
-    } catch (error) {
-        console.error('Erreur Firebase - saveGames:', error);
-        throw error;
-    }
+const saveGames = (games: Record<string, GameState>) => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(games));
 };
 
-/**
- * Récupère une partie spécifique depuis Firebase
- */
-export const getGame = async (gameCode: string): Promise<GameState | null> => {
-    try {
-        const gameRef = ref(database, `games/${gameCode}`);
-        const snapshot = await get(gameRef);
-        return snapshot.exists() ? snapshot.val() : null;
-    } catch (error) {
-        console.error(`Erreur Firebase - await getGame(${gameCode}):`, error);
-        return null;
-    }
-};
-
-/**
- * Écoute les changements en temps réel d'une partie
- */
-export const subscribeToGame = (gameCode: string, callback: (game: GameState | null) => void): (() => void) => {
-    const gameRef = ref(database, `games/${gameCode}`);
-    
-    const unsubscribe = onValue(gameRef, (snapshot) => {
-        const game = snapshot.exists() ? snapshot.val() : null;
-        callback(game);
-    }, (error) => {
-        console.error(`Erreur Firebase - subscribeToGame(${gameCode}):`, error);
-        callback(null);
-    });
-
-    // Stocker le listener pour nettoyage ultérieur
-    activeListeners.set(gameCode, unsubscribe);
-
-    // Retourner la fonction de désabonnement
-    return () => {
-        off(gameRef);
-        activeListeners.delete(gameCode);
-    };
-};
-
-/**
- * Nettoie tous les listeners actifs
- */
-export const cleanup = () => {
-    activeListeners.forEach((unsubscribe) => unsubscribe());
-    activeListeners.clear();
-};
+export const getGame = (gameCode: string): GameState | null => {
+    return getGames()[gameCode] || null;
+}
 
 // Fonction pour sauvegarder l'état actuel dans l'historique (pour le retour en arrière)
 const saveToHistory = (game: GameState) => {
@@ -103,20 +43,12 @@ const saveToHistory = (game: GameState) => {
     game.history.push(stateCopy);
 };
 
-const updateAndNotify = async (gameCode: string, game: GameState): Promise<void> => {
-    try {
-        const gameRef = ref(database, `games/${gameCode}`);
-        await set(gameRef, game);
-        
-        // La notification est automatique via onValue()
-        if (stateUpdateCallback) {
-            stateUpdateCallback(gameCode);
-        }
-    } catch (error) {
-        console.error(`Erreur Firebase - await updateAndNotify(${gameCode}):`, error);
-        throw error;
-    }
-};
+const updateAndNotify = (gameCode: string, game: GameState) => {
+    const games = getGames();
+    games[gameCode] = game;
+    saveGames(games);
+    if(stateUpdateCallback) stateUpdateCallback(gameCode);
+}
 
 // --- Moteur de jeu principal (exécuté par le "maître") ---
 export const initialize = (clientId: string, onStateUpdate: (gameCode: string | null) => void) => {
@@ -297,7 +229,7 @@ const startNight = async (game: GameState, gameCode: string) => {
     checkWinConditions(game);
     if (game.winner) {
         game.narratorMessage = await generateNarration(`La partie est terminée avant même la nuit !`);
-        await updateAndNotify(gameCode, game);
+        updateAndNotify(gameCode, game);
         return;
     }
     
@@ -329,7 +261,7 @@ const startNight = async (game: GameState, gameCode: string) => {
     game.witchActionCompleted = false;
     
     // NE PAS démarrer automatiquement - le narrateur doit cliquer manuellement
-    await updateAndNotify(gameCode, game);
+    updateAndNotify(gameCode, game);
 };
 
 const advanceNightTurn = async (game: GameState, gameCode: string) => {
@@ -352,9 +284,9 @@ const advanceNightTurn = async (game: GameState, gameCode: string) => {
         
         game.phase = nextPhase;
         game.narratorMessage = await generateNarration(`${roleConfig.name} se réveille dans la nuit. Demandez-lui d'effectuer son action discrètement.`);
-        await updateAndNotify(gameCode, game);
+        updateAndNotify(gameCode, game);
     } else {
-        await await endNight(game, gameCode);
+        await endNight(game, gameCode);
     }
 };
 
@@ -398,7 +330,7 @@ const endNight = async (game: GameState, gameCode: string) => {
     checkWinConditions(game);
     if (game.winner) {
         game.narratorMessage = await generateNarration(`La partie est terminée ! ${deathMessages.join(' ')}`);
-        await updateAndNotify(gameCode, game);
+        updateAndNotify(gameCode, game);
         return;
     }
     
@@ -408,13 +340,13 @@ const endNight = async (game: GameState, gameCode: string) => {
             game.phase = 'HUNTER_REVENGE';
             game.hunterWhoDiedId = player.id;
             game.narratorMessage = await generateNarration(`Le chasseur ${player.name} est mort! Il doit choisir une dernière cible.`);
-            await updateAndNotify(gameCode, game);
+            updateAndNotify(gameCode, game);
             return;
         }
         if(player.id === game.mayorId) {
             game.phase = 'MAYOR_SUCCESSION';
             game.narratorMessage = await generateNarration(`Le maire ${player.name} est mort! Il doit désigner son successeur.`);
-            await updateAndNotify(gameCode, game);
+            updateAndNotify(gameCode, game);
             return;
         }
     }
@@ -443,7 +375,7 @@ const endNight = async (game: GameState, gameCode: string) => {
             game.narratorMessage = await generateNarration(`Le jour se lève. ${deathMessages.join(" ")} Le village doit maintenant débattre.`);
         }
     }
-    await updateAndNotify(gameCode, game);
+    updateAndNotify(gameCode, game);
 };
 
 
@@ -459,15 +391,15 @@ export const createGame = async (clientId: string, narratorName: string) => {
     const gameCode = generateGameCode();
     const narrator = { id: clientId, name: trimmedName, role: null, isAlive: true, isNarrator: true };
     const newGame = createInitialGameState(gameCode, narrator);
-    await updateAndNotify(gameCode, newGame);
+    updateAndNotify(gameCode, newGame);
 };
 
 export const joinGame = async (clientId: string, playerName: string, gameCode: string) => {
-    const game = await getGame(gameCode);
+    const game = getGame(gameCode);
     if (!game) throw new Error("Cette partie n'existe pas.");
     if (game.phase !== 'ROLE_ASSIGNMENT') throw new Error("La partie a déjà commencé.");
     if (game.players.some(p => p.id === clientId)) { // Already in game, maybe reconnecting
-        await await updateAndNotify(gameCode, game);
+        updateAndNotify(gameCode, game);
         return;
     };
     
@@ -485,27 +417,27 @@ export const joinGame = async (clientId: string, playerName: string, gameCode: s
     }
     
     game.players.push({ id: clientId, name: trimmedName, role: null, isAlive: true, isNarrator: false });
-    await await updateAndNotify(gameCode, game);
+    updateAndNotify(gameCode, game);
 };
 
-export const reconnectPlayer = async (clientId: string, gameCode: string) => {
-    const game = await getGame(gameCode);
+export const reconnectPlayer = (clientId: string, gameCode: string) => {
+    const game = getGame(gameCode);
     if (game && game.players.some(p => p.id === clientId)) {
         if(stateUpdateCallback) stateUpdateCallback(gameCode);
     }
 };
 
-export const leaveGame = async (clientId: string, gameCode: string) => {
-    const game = await getGame(gameCode);
+export const leaveGame = (clientId: string, gameCode: string) => {
+    const game = getGame(gameCode);
     if (!game) return;
     game.players = game.players.filter(p => p.id !== clientId);
     if (game.players.length === 0 || game.players.every(p => !p.isNarrator)) {
-        // Supprimer la partie de Firebase
-        const gameRef = ref(database, `games/${gameCode}`);
-        await remove(gameRef);
+        const games = getGames();
+        delete games[gameCode];
+        saveGames(games);
         if(stateUpdateCallback) stateUpdateCallback(null);
     } else {
-        await await updateAndNotify(gameCode, game);
+        updateAndNotify(gameCode, game);
     }
 };
 
@@ -527,7 +459,7 @@ export const startGame = async (clientId: string, gameCode: string | null) => {
 
 export const startGameWithConfig = async (clientId: string, gameCode: string | null, config: any) => {
     if (!gameCode) return;
-    const game = await getGame(gameCode);
+    const game = getGame(gameCode);
     // Only the narrator can start the game.
     if (!game || game.players[0].id !== clientId) return;
 
@@ -540,32 +472,32 @@ export const startGameWithConfig = async (clientId: string, gameCode: string | n
         
         if (game.phase === 'THIEF_TURN') {
             game.narratorMessage = await generateNarration("La nuit tombe. Le voleur se réveille pour voler le rôle d'un autre joueur.");
-            await updateAndNotify(gameCode, game);
+            updateAndNotify(gameCode, game);
         } else {
             // S'il n'y a pas de voleur, démarrer directement la nuit 1
             game.turn = 1;
             game.phase = 'NIGHT';
             game.narratorMessage = await generateNarration(`Nuit ${game.turn}. Le village s'endort. Cliquez sur "Phase Suivante" pour commencer.`);
-            await updateAndNotify(gameCode, game);
+            updateAndNotify(gameCode, game);
         }
     } catch (error: any) {
         console.error('Erreur lors du démarrage avec configuration:', error);
         // Notify the narrator of the error
         game.narratorMessage = `Erreur: ${error.message}`;
-        await updateAndNotify(gameCode, game);
+        updateAndNotify(gameCode, game);
     }
 };
 
 export const advancePhase = async (clientId: string, gameCode: string | null, payload?: any) => {
     if (!gameCode) return;
-    const game = await getGame(gameCode);
+    const game = getGame(gameCode);
     if (!game) return;
     
     // Only the narrator can advance the phase.
     if (!game.players.length || game.players[0].id !== clientId) return;
 
     // Sauvegarder l'état actuel dans l'historique avant toute modification
-    await saveToHistory(game);
+    saveToHistory(game);
 
     switch(game.phase) {
         case 'THIEF_TURN':
@@ -573,21 +505,21 @@ export const advancePhase = async (clientId: string, gameCode: string | null, pa
             game.turn = 0; // Phase intermédiaire avant la nuit 1
             game.phase = 'ROLE_ASSIGNMENT'; // Phase de réveil général
             game.narratorMessage = await generateNarration(`Le voleur a terminé. RÉVEIL GÉNÉRAL : Tout le monde consulte maintenant son téléphone pour voir si son rôle a été échangé ! Cliquez sur "Phase Suivante" quand tous ont vérifié.`);
-            await updateAndNotify(gameCode, game);
+            updateAndNotify(gameCode, game);
             break;
         case 'ROLE_ASSIGNMENT':
             // Après le réveil général, commencer la vraie nuit 1 (deuxième nuit spéciale)
-            await await startNight(game, gameCode);
+            await startNight(game, gameCode);
             break;
         case 'NIGHT':
             // Passer de la phase NIGHT générale à la première phase nocturne spécifique
-            await await advanceNightTurn(game, gameCode);
+            await advanceNightTurn(game, gameCode);
             break;
         case 'CUPID_TURN':
         case 'SEER_TURN':
         case 'WEREWOLVES_TURN':
         case 'WITCH_TURN':
-            await await advanceNightTurn(game, gameCode);
+            await advanceNightTurn(game, gameCode);
             break;
         case 'MAYOR_ELECTION': {
             const votes = Object.values(game.mayorVotes);
@@ -636,7 +568,7 @@ export const advancePhase = async (clientId: string, gameCode: string | null, pa
             checkWinConditions(game);
             if (game.winner) {
                 game.narratorMessage = await generateNarration("La partie est terminée ! Inutile de voter.");
-                await updateAndNotify(gameCode, game);
+                updateAndNotify(gameCode, game);
                 break;
             }
             game.phase = 'DAY_VOTE';
@@ -685,10 +617,10 @@ export const advancePhase = async (clientId: string, gameCode: string | null, pa
                 if (game.winner) game.phase = 'GAME_OVER';
                 else if(player.role === 'HUNTER') { game.phase = 'HUNTER_REVENGE'; game.hunterWhoDiedId = player.id; }
                 else if(player.id === game.mayorId) game.phase = 'MAYOR_SUCCESSION';
-                else await await startNight(game, gameCode);
+                else await startNight(game, gameCode);
             } else {
                 game.narratorMessage = await generateNarration("Vote partagé, personne n'est éliminé. La nuit tombe.");
-                await await startNight(game, gameCode);
+                await startNight(game, gameCode);
             }
             break;
         }
@@ -713,7 +645,7 @@ export const advancePhase = async (clientId: string, gameCode: string | null, pa
             checkWinConditions(game);
             if (game.winner) game.phase = 'GAME_OVER';
             else if (game.hunterWhoDiedId === game.mayorId) game.phase = 'MAYOR_SUCCESSION';
-            else await await startNight(game, gameCode);
+            else await startNight(game, gameCode);
             game.hunterWhoDiedId = null;
             break;
         }
@@ -721,37 +653,37 @@ export const advancePhase = async (clientId: string, gameCode: string | null, pa
             game.mayorId = payload.successorId;
             const newMayor = game.players.find(p => p.id === game.mayorId);
             game.narratorMessage = await generateNarration(`${newMayor?.name} est le nouveau maire. La nuit tombe.`);
-            await await startNight(game, gameCode);
+            await startNight(game, gameCode);
             break;
         }
     }
-    await updateAndNotify(gameCode, game);
+    updateAndNotify(gameCode, game);
 };
    
-export const submitMayorVote = async (clientId: string, gameCode: string | null, voterId: string, candidateId: string) => {
+export const submitMayorVote = (clientId: string, gameCode: string | null, voterId: string, candidateId: string) => {
     if (!gameCode) return;
-    const game = await getGame(gameCode);
+    const game = getGame(gameCode);
     if (!game || game.phase !== 'MAYOR_ELECTION') return;
-    await saveToHistory(game);
+    saveToHistory(game);
     game.mayorVotes[voterId] = candidateId;
-    await updateAndNotify(gameCode, game);
+    updateAndNotify(gameCode, game);
 };
    
-export const submitVote = async (clientId: string, gameCode: string | null, voterId: string, votedPlayerId: string) => {
+export const submitVote = (clientId: string, gameCode: string | null, voterId: string, votedPlayerId: string) => {
     if (!gameCode) return;
-    const game = await getGame(gameCode);
+    const game = getGame(gameCode);
     if (!game || game.phase !== 'DAY_VOTE') return;
-    await saveToHistory(game);
+    saveToHistory(game);
     game.votes[voterId] = votedPlayerId;
-    await updateAndNotify(gameCode, game);
+    updateAndNotify(gameCode, game);
 };
    
-export const submitNightAction = async (clientId: string, gameCode: string | null, actorId: string, targetId: string) => {
+export const submitNightAction = (clientId: string, gameCode: string | null, actorId: string, targetId: string) => {
     if (!gameCode) return;
-    const game = await getGame(gameCode);
+    const game = getGame(gameCode);
     if (!game) return;
     
-    await saveToHistory(game);
+    saveToHistory(game);
     
     // Gestion des actions du narrateur (pour le jeu en présentiel)
     if (actorId === 'NARRATOR_SEER' && game.phase === 'SEER_TURN') {
@@ -760,7 +692,7 @@ export const submitNightAction = async (clientId: string, gameCode: string | nul
         if (!game.seerSeenPlayers.includes(targetId)) {
             game.seerSeenPlayers.push(targetId);
         }
-        await updateAndNotify(gameCode, game);
+        updateAndNotify(gameCode, game);
         
         // NE PAS passer automatiquement à la phase suivante
         // Le narrateur doit avoir le temps de montrer le résultat à la voyante
@@ -771,13 +703,13 @@ export const submitNightAction = async (clientId: string, gameCode: string | nul
     if (actorId === 'NARRATOR_WEREWOLVES' && game.phase === 'WEREWOLVES_TURN') {
         game.werewolfChoice = targetId;
         game.werewolfVictimId = targetId;
-        await updateAndNotify(gameCode, game);
+        updateAndNotify(gameCode, game);
         
         // Passer automatiquement à la phase suivante après l'action des loups-garous
         setTimeout(async () => {
-            const refreshedGame = await getGame(gameCode);
+            const refreshedGame = getGame(gameCode);
             if (refreshedGame && refreshedGame.phase === 'WEREWOLVES_TURN') {
-                await await advanceNightTurn(refreshedGame, gameCode);
+                await advanceNightTurn(refreshedGame, gameCode);
             }
         }, 100);
         return;
@@ -796,15 +728,15 @@ export const submitNightAction = async (clientId: string, gameCode: string | nul
         game.werewolfChoice = targetId;
         game.werewolfVictimId = targetId;
     }
-    await updateAndNotify(gameCode, game);
+    updateAndNotify(gameCode, game);
 };
    
-export const submitWitchAction = async (clientId: string, gameCode: string | null, action: WitchAction) => {
+export const submitWitchAction = (clientId: string, gameCode: string | null, action: WitchAction) => {
     if (!gameCode) return;
-    const game = await getGame(gameCode);
+    const game = getGame(gameCode);
     if (!game || game.phase !== 'WITCH_TURN') return;
     
-    await saveToHistory(game);
+    saveToHistory(game);
     
     // Le narrateur peut soumettre les actions de la sorcière
     const narrator = game.players.find(p => p.isNarrator && p.id === clientId);
@@ -828,23 +760,23 @@ export const submitWitchAction = async (clientId: string, gameCode: string | nul
     }
     
     // Passer automatiquement à la phase suivante après l'action de la sorcière
-    await updateAndNotify(gameCode, game);
+    updateAndNotify(gameCode, game);
     
     // Avancer automatiquement vers la phase suivante
     setTimeout(async () => {
-        const refreshedGame = await getGame(gameCode);
+        const refreshedGame = getGame(gameCode);
         if (refreshedGame && refreshedGame.phase === 'WITCH_TURN') {
-            await await advanceNightTurn(refreshedGame, gameCode);
+            await advanceNightTurn(refreshedGame, gameCode);
         }
     }, 100);
 };
    
-export const submitCupidSelection = async (clientId: string, gameCode: string | null, player1Id: string, player2Id: string) => {
+export const submitCupidSelection = (clientId: string, gameCode: string | null, player1Id: string, player2Id: string) => {
     if (!gameCode) return;
-    const game = await getGame(gameCode);
+    const game = getGame(gameCode);
     if (!game || game.phase !== 'CUPID_TURN') return;
     
-    await saveToHistory(game);
+    saveToHistory(game);
     
     // Le narrateur ou Cupidon peuvent soumettre la sélection
     const narrator = game.players.find(p => p.isNarrator && p.id === clientId);
@@ -853,20 +785,20 @@ export const submitCupidSelection = async (clientId: string, gameCode: string | 
     if (!narrator && !cupid) return;
     
     game.lovers = [player1Id, player2Id];
-    await updateAndNotify(gameCode, game);
+    updateAndNotify(gameCode, game);
     
     // Passer automatiquement à la phase suivante après la sélection de Cupidon
     setTimeout(async () => {
-        const refreshedGame = await getGame(gameCode);
+        const refreshedGame = getGame(gameCode);
         if (refreshedGame && refreshedGame.phase === 'CUPID_TURN') {
-            await await advanceNightTurn(refreshedGame, gameCode);
+            await advanceNightTurn(refreshedGame, gameCode);
         }
     }, 100);
 };
    
-export const submitThiefChoice = async (clientId: string, gameCode: string | null, targetPlayerId: string) => {
+export const submitThiefChoice = (clientId: string, gameCode: string | null, targetPlayerId: string) => {
     if (!gameCode) return;
-    const game = await getGame(gameCode);
+    const game = getGame(gameCode);
     if (!game || game.phase !== 'THIEF_TURN') return;
     
     // Seul le narrateur peut soumettre le choix du voleur (pour le jeu en présentiel)
@@ -874,7 +806,7 @@ export const submitThiefChoice = async (clientId: string, gameCode: string | nul
     if (!narrator) return;
     
     // Sauvegarder l'état actuel dans l'historique avant modification
-    await saveToHistory(game);
+    saveToHistory(game);
     
     // Trouver le voleur et la victime
     const thief = game.players.find(p => p.role === 'THIEF');
@@ -894,13 +826,13 @@ export const submitThiefChoice = async (clientId: string, gameCode: string | nul
     game.thiefPlayerId = thief.id;
     game.thiefStolenFromId = targetPlayerId;
     
-    await updateAndNotify(gameCode, game);
+    updateAndNotify(gameCode, game);
 };
 
 // Fonction de retour en arrière : restaure l'état précédent
-export const undoLastAction = async (clientId: string, gameCode: string | null) => {
+export const undoLastAction = (clientId: string, gameCode: string | null) => {
     if (!gameCode) return;
-    const game = await getGame(gameCode);
+    const game = getGame(gameCode);
     if (!game) return;
     
     // Seul le narrateur peut revenir en arrière
@@ -921,5 +853,5 @@ export const undoLastAction = async (clientId: string, gameCode: string | null) 
     Object.assign(game, previousState);
     game.history = remainingHistory;
     
-    await updateAndNotify(gameCode, game);
+    updateAndNotify(gameCode, game);
 };

@@ -39,12 +39,12 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const clientId = useRef(sessionStorage.getItem('clientId') || `client-${crypto.randomUUID()}`);
   sessionStorage.setItem('clientId', clientId.current);
 
-  const updateStateForClient = useCallback((gameCode: string | null) => {
+  const updateStateForClient = useCallback(async (gameCode: string | null) => {
     if (!gameCode) {
       setGameState(initialState);
       return;
     }
-    const game = gameService.getGame(gameCode);
+    const game = await gameService.getGame(gameCode);
     if (game) {
       const currentPlayer = game.players.find((p: Player) => p.id === clientId.current) || null;
       setGameState({ ...game, currentPlayer });
