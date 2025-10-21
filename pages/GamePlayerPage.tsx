@@ -259,7 +259,7 @@ export const GamePlayerPage: React.FC = () => {
                 );
             default:
                 // Messages spécialisés pour les phases nocturnes
-                if (phase === 'SEER_TURN' && currentPlayer.role !== 'SEER') {
+                if ((phase as string) === 'SEER_TURN' && currentPlayer.role !== 'SEER') {
                     return (
                         <div style={{ background: 'var(--primary-color-light)', padding: '1rem', borderRadius: '8px' }}>
                             <h4 style={{marginTop: 0}}>Tour de la Voyante</h4>
@@ -270,7 +270,7 @@ export const GamePlayerPage: React.FC = () => {
                     );
                 }
                 
-                if (phase === 'WEREWOLVES_TURN' && currentPlayer.role !== 'WEREWOLF') {
+                if ((phase as string) === 'WEREWOLVES_TURN' && currentPlayer.role !== 'WEREWOLF') {
                     return (
                         <div style={{ background: 'var(--primary-color-light)', padding: '1rem', borderRadius: '8px' }}>
                             <h4 style={{marginTop: 0}}>Tour des Loups-Garous</h4>
@@ -281,7 +281,7 @@ export const GamePlayerPage: React.FC = () => {
                     );
                 }
                 
-                if (phase === 'WITCH_TURN' && currentPlayer.role !== 'WITCH') {
+                if ((phase as string) === 'WITCH_TURN' && currentPlayer.role !== 'WITCH') {
                     return (
                         <div style={{ background: 'var(--primary-color-light)', padding: '1rem', borderRadius: '8px' }}>
                             <h4 style={{marginTop: 0}}>Tour de la Sorcière</h4>
@@ -292,7 +292,7 @@ export const GamePlayerPage: React.FC = () => {
                     );
                 }
                 
-                if (phase === 'CUPID_TURN' && currentPlayer.role !== 'CUPID') {
+                if ((phase as string) === 'CUPID_TURN' && currentPlayer.role !== 'CUPID') {
                     return (
                         <div style={{ background: 'var(--primary-color-light)', padding: '1rem', borderRadius: '8px' }}>
                             <h4 style={{marginTop: 0}}>Tour de Cupidon</h4>

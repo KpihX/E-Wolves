@@ -2,7 +2,7 @@ import React from 'react';
 import './Button.css';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'default' | 'action';
+  variant?: 'default' | 'action' | 'secondary';
 }
 
 export const Button: React.FC<ButtonProps> = ({ 
