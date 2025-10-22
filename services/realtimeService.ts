@@ -463,13 +463,13 @@ export const createGame = async (clientId: string, narratorName: string): Promis
     return gameCode;
 };
 
-export const joinGame = async (clientId: string, playerName: string, gameCode: string) => {
+export const joinGame = async (clientId: string, playerName: string, gameCode: string): Promise<string> => {
     const game = await getGame(gameCode);
     if (!game) throw new Error("Cette partie n'existe pas.");
     if (game.phase !== 'ROLE_ASSIGNMENT') throw new Error("La partie a déjà commencé.");
     if (game.players.some(p => p.id === clientId)) { // Already in game, maybe reconnecting
-        await await updateAndNotify(gameCode, game);
-        return;
+        await updateAndNotify(gameCode, game);
+        return gameCode;
     };
     
     // Valider que le nom n'est pas vide
@@ -486,7 +486,8 @@ export const joinGame = async (clientId: string, playerName: string, gameCode: s
     }
     
     game.players.push({ id: clientId, name: trimmedName, role: null, isAlive: true, isNarrator: false });
-    await await updateAndNotify(gameCode, game);
+    await updateAndNotify(gameCode, game);
+    return gameCode;
 };
 
 export const reconnectPlayer = async (clientId: string, gameCode: string) => {

@@ -40,18 +40,26 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   sessionStorage.setItem('clientId', clientId.current);
 
   const updateStateForClient = useCallback(async (gameCode: string | null) => {
+    console.log('updateStateForClient appelé avec gameCode:', gameCode);
     if (!gameCode) {
       setGameState(initialState);
       return;
     }
     const game = await gameService.getGame(gameCode);
+    console.log('updateStateForClient - jeu récupéré:', game);
     if (game) {
       const currentPlayer = game.players.find((p: Player) => p.id === clientId.current) || null;
-      setGameState({ ...game, currentPlayer });
+      // Déterminer le bon screen en fonction de la phase et du rôle
+      const screen: Screen = game.phase === 'ROLE_ASSIGNMENT' ? 'LOBBY' :
+                             currentPlayer?.isNarrator ? 'GAME_NARRATOR' : 
+                             'GAME_PLAYER';
+      console.log('updateStateForClient - screen calculé:', screen, 'currentPlayer:', currentPlayer);
+      setGameState({ ...game, currentPlayer, screen });
       if (currentPlayer) {
         sessionStorage.setItem('gameCode', gameCode);
       }
     } else {
+        console.log('updateStateForClient - jeu non trouvé, retour HOME');
         sessionStorage.removeItem('gameCode');
         setGameState({...initialState, screen: 'HOME' });
     }
@@ -59,60 +67,97 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   }, []);
 
   useEffect(() => {
-    // Initialiser le service de jeu (qui gère la logique du "serveur" local)
-    gameService.initialize(clientId.current, (gameCode) => updateStateForClient(gameCode));
-
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === gameService.STORAGE_KEY) {
-        const gameCode = sessionStorage.getItem('gameCode');
-        if(gameCode){
-            updateStateForClient(gameCode);
-        }
-      }
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
-    
-    // Tentative de reconnexion
+    // Tentative de reconnexion à une partie existante
     const existingGameCode = sessionStorage.getItem('gameCode');
     if (existingGameCode) {
+      console.log('Reconnexion à la partie:', existingGameCode);
       gameService.reconnectPlayer(clientId.current, existingGameCode);
       updateStateForClient(existingGameCode);
+      
+      // S'abonner aux changements temps réel pour la reconnexion
+      gameService.subscribeToGame(existingGameCode, (updatedGame) => {
+        if (!updatedGame) {
+          console.log('Partie supprimée, retour HOME');
+          sessionStorage.removeItem('gameCode');
+          setGameState({...initialState, screen: 'HOME'});
+          return;
+        }
+        
+        const currentPlayer = updatedGame.players.find(p => p.id === clientId.current);
+        if (currentPlayer) {
+          const screen: Screen = updatedGame.phase === 'ROLE_ASSIGNMENT' ? 'LOBBY' :
+                                 currentPlayer.isNarrator ? 'GAME_NARRATOR' : 
+                                 'GAME_PLAYER';
+          setGameState({ ...updatedGame, currentPlayer, screen });
+        }
+      });
     }
     
+    // Nettoyage des listeners à la fermeture
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      gameService.cleanup();
     };
-  }, [updateStateForClient]);
+  }, []); // Vide pour n'exécuter qu'au montage
 
   const handleAction = useCallback(async (action: Function, ...args: any[]) => {
     setIsLoading(true);
     try {
       const result = await action(clientId.current, ...args);
+      console.log('handleAction result:', result, 'type:', typeof result, 'length:', result?.length);
       
       // Si l'action retourne un gameCode (ex: createGame), s'abonner aux changements
       if (typeof result === 'string' && result.length === 5) {
+        console.log('Création de partie détectée, gameCode:', result);
         sessionStorage.setItem('gameCode', result);
-        await updateStateForClient(result);
+        
+        // S'abonner aux changements temps réel
+        let isFirstUpdate = true;
         gameService.subscribeToGame(result, (updatedGame) => {
-          setGameState(prev => {
-            const currentPlayer = updatedGame.players.find(p => p.id === clientId.current)!;
-            return {
-              ...prev,
-              game: updatedGame,
-              screen: currentPlayer.isNarrator ? 'GAME_NARRATOR' : 'GAME_PLAYER'
-            };
-          });
-          setIsLoading(false);
+          console.log('subscribeToGame callback appelé, updatedGame:', updatedGame);
+          
+          if (!updatedGame) {
+            console.error('Le jeu n\'existe plus');
+            sessionStorage.removeItem('gameCode');
+            setGameState({...initialState, screen: 'HOME'});
+            setIsLoading(false);
+            return;
+          }
+          
+          const currentPlayer = updatedGame.players.find(p => p.id === clientId.current);
+          console.log('currentPlayer trouvé:', currentPlayer);
+          
+          if (!currentPlayer) {
+            console.error('Le joueur n\'est pas dans la partie');
+            return;
+          }
+          
+          // Déterminer le bon screen en fonction du rôle et de la phase
+          const screen: Screen = updatedGame.phase === 'ROLE_ASSIGNMENT' ? 'LOBBY' :
+                                 currentPlayer.isNarrator ? 'GAME_NARRATOR' : 
+                                 'GAME_PLAYER';
+          console.log('Screen calculé:', screen, 'isNarrator:', currentPlayer.isNarrator, 'phase:', updatedGame.phase);
+          setGameState({ ...updatedGame, currentPlayer, screen });
+          
+          // Désactiver le loading seulement après la première mise à jour
+          if (isFirstUpdate) {
+            console.log('Première mise à jour, désactivation du loading');
+            setIsLoading(false);
+            isFirstUpdate = false;
+          }
         });
+        
+        // Ne pas appeler setIsLoading(false) ici, on attend le premier callback
+      } else {
+        // Pour les autres actions, on désactive le loading immédiatement
+        console.log('Action sans gameCode, désactivation du loading');
+        setIsLoading(false);
       }
-      setIsLoading(false);
     } catch (e: any) {
-      console.error(e);
+      console.error('Erreur dans handleAction:', e);
       alert(e.message || "Une erreur est survenue.");
       setIsLoading(false);
     }
-  }, [updateStateForClient]);
+  }, []);
 
   const createGame = (narratorName: string) => handleAction(gameService.createGame, narratorName);
   const joinGame = (playerName: string, code: string) => handleAction(gameService.joinGame, playerName, code.toUpperCase());
