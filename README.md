@@ -5,6 +5,7 @@
 [![Firebase](https://img.shields.io/badge/Firebase-Realtime%20DB-orange.svg)](https://firebase.google.com/)
 [![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black.svg)](https://vercel.com/)
 [![Status](https://img.shields.io/badge/Status-Production-success.svg)](https://e-wolves.vercel.app/)
+[![License](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc/4.0/)
 
 Application web de Loup-Garou pour jeu en présentiel avec synchronisation temps réel.
 
@@ -21,7 +22,7 @@ Application web de Loup-Garou pour jeu en présentiel avec synchronisation temps
 5. [Configuration Firebase](#-configuration-firebase)
 6. [Déploiement Vercel](#-déploiement-vercel)
 7. [Architecture du Projet](#-architecture-du-projet)
-8. [Guide d'Utilisation](#-guide-dutilisation)
+8. [Guide d&#39;Utilisation](#-guide-dutilisation)
 9. [Scripts Disponibles](#-scripts-disponibles)
 10. [Technologies Utilisées](#-technologies-utilisées)
 11. [Contribuer](#-contribuer)
@@ -487,20 +488,20 @@ npm run preview
 
 ### Frontend
 
-| Technologie | Version | Rôle |
-|-------------|---------|------|
-| **React** | 19.1 | Framework UI |
-| **TypeScript** | 5.2 | Typage statique |
-| **Vite** | 5.4 | Build tool & HMR |
-| **CSS Modules** | - | Styling |
+| Technologie           | Version | Rôle            |
+| --------------------- | ------- | ---------------- |
+| **React**       | 19.1    | Framework UI     |
+| **TypeScript**  | 5.2     | Typage statique  |
+| **Vite**        | 5.4     | Build tool & HMR |
+| **CSS Modules** | -       | Styling          |
 
 ### Backend & Infrastructure
 
-| Service | Rôle |
-|---------|------|
+| Service                              | Rôle                        |
+| ------------------------------------ | ---------------------------- |
 | **Firebase Realtime Database** | Base de données temps réel |
-| **Vercel** | Hosting & CDN global |
-| **GitHub** | Version control & CI/CD |
+| **Vercel**                     | Hosting & CDN global         |
+| **GitHub**                     | Version control & CI/CD      |
 
 ### Dépendances Principales
 
@@ -571,14 +572,21 @@ Utilisez les [Conventional Commits](https://www.conventionalcommits.org/) :
 
 ## 📄 Licence
 
-MIT © 2024 KπX
+**Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)**
 
-Vous êtes libre de :
+© 2024 KπX
 
-- ✅ Utiliser ce projet à des fins personnelles ou commerciales
-- ✅ Modifier le code source
-- ✅ Distribuer votre version
-- ✅ Utiliser à des fins privées
+### ✅ Vous êtes libre de :
+
+- **Partager** — Copier et redistribuer le matériel
+- **Adapter** — Remixer, transformer et créer à partir du matériel
+
+### ⚠️ Selon les conditions suivantes :
+
+- **Attribution** — Vous devez créditer l'œuvre et indiquer si des modifications ont été effectuées
+- **Pas d'utilisation commerciale** — Vous n'êtes pas autorisé à faire un usage commercial de cette œuvre
+
+📜 Licence complète : [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/)
 
 ---
 
